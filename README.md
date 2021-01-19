@@ -4,7 +4,7 @@ An Algorithmic Trading Engine written in Python, with object-oriented & dynamic 
   - Research, Develop & Backtest Quantitative Trading Strategies
   - Live (Paper) Trading Strategies Through Live Brokerage API (pending)
   
-# Progress Log
+## Progress Log
 - **January 19, 2021**:
   - Creation & First Commit
 
