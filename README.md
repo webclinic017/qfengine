@@ -1,2 +1,12 @@
-# qfengine
-Quantitative Finance (QF) Engine is an engine written in Python with dynamic features for most Algorithmic Trading purposes (R&amp;D, Backtesting &amp; Analysis, Live (Paper) Trading, etc...),  
+# Quantitative Finance Engine (qfengine)
+An Algorithmic Trading Engine written in Python, with object-oriented & dynamic architecture for Quantitative Trading purposes such as:
+  - Managing Data (price, fundamental, alternative) from different financial markets (equities, crypto, etc...) 
+  - Research, Develop & Backtest Quantitative Trading Strategies
+  - Live (Paper) Trading Strategies Through Live Brokerage API (pending)
+  
+# Progress Log
+- **January 19, 2021**:
+  - Creation & First Commit
+
+
+[MORE DETAILS COMING SOON]
