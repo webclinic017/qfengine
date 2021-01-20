@@ -28,7 +28,7 @@ An Algorithmic Trading Engine written in Python, with object-oriented & dynamic 
     - Risk Model returns risk factors (covariance) matrix, which can be decomposed to common risk factors & assets' specific risk factors, generated through (a combination of):
         - *Sample Covariance Method(s)*
         - *Random Matrix Theory (RMT) Correlation Filtering (specifically Marchenko-Pastur)*
-        - *Stochastic Volatility Predictive Model(s)*
+        - *Stochastic Volatility*
         - *ETC...*
     
     - Optimizer takes in Alpha & Risk signals and perform Portfolio Optimization, with flexibility allowed for additional features such as:
