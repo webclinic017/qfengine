@@ -6,7 +6,7 @@ An Algorithmic Trading Engine written in Python, with object-oriented & dynamic 
   
  The architecture written is inspired by Michael Moore's QSTrader, with major added edits & personal improvements for more complex modeling & data management:
  
- - ### Data Handling
+ - #### Data Handling
     - *DataHandler* is written as an abstract class, which provide further versatile subclasses such as *BacktestDataHandler*
     - Each derived subclasses of *DataHandler* will take in a list of *DataSource*, or simply *Database*, which can be categorized via:
         - Format: *CSV, MySQL, etc...*
@@ -19,7 +19,7 @@ An Algorithmic Trading Engine written in Python, with object-oriented & dynamic 
         - *ETC...*
  
  
- - ### Portfolio Construction
+ - #### Portfolio Construction
     - Alpha Model returns alpha weights (expected returns), generated through:
         - *Predictive model(s)*
         - *Historical averaging(s)*
