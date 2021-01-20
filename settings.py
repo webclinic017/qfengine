@@ -19,11 +19,12 @@ TIMEZONE = pytz.timezone('America/New_York')
 
 PRINT_EVENTS = True
 
+#---| PROVIDE MySQL Database Credentials if using MySQL Data Source(s)
 MYSQL_CREDENTIALS = {
             'user': 'root',
-            'passwd': 'Immortality1015!',
+            'passwd': 'password',
             'host': 'localhost',
-            'db':'equities'
+            'db':'database',
 }
 
 
