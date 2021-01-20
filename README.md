@@ -8,7 +8,7 @@ An Algorithmic Trading Engine written in Python, with object-oriented & dynamic 
 - **January 19, 2021**:
   - Creation & First Commit
  
- # Description
+ ## Description
  The architecture written is inspired by Michael Moore's QSTrader, with major added edits & personal improvements for more complex modeling & data management:
  
  - #### Data Handling
