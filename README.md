@@ -13,9 +13,12 @@ An Algorithmic Trading Engine written in Python, with object-oriented & dynamic 
         - Data Type: *Time-Series Prices, Fundamentals, Alternative, etc...*
         - Data Frequency: *Annually, Quarterly, Weekly, Daily, Hourly, Minute, etc...*
         - *ETC...*
-    - Implemented Vendor APIs:
+    - Implement Vendor APIs:
         - *Alpaca*
         - *IEXCloud*
+        - *ETC...*
+    - Implement Fundamental Data Management (to be added soon once finalized):
+        - *SEC Filings (EDGAR)*
         - *ETC...*
  
  
