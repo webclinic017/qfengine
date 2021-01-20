@@ -34,7 +34,7 @@ An Algorithmic Trading Engine written in Python, with object-oriented & dynamic 
     - Optimizer takes in Alpha & Risk signals and perform Portfolio Optimization, with flexibility allowed for additional features such as:
         - *Additional Constraints*
         - *Gross & Net Exposures*
-        - *Risk Aversion Ratios ($\lambda_{CF}$ & $\lambda_{AS})
+        - *Risk Aversion Ratios*
         - *ETC...*
  
  
