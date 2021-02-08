@@ -7,18 +7,15 @@ import datetime
 from tqdm.auto import tqdm
 from copy import deepcopy
 import concurrent.futures
+from qfengine import settings
 
 #--------------| <-ALPACA API-> |
 class Alpaca(object):
     name = 'Alpaca'
     website_url = 'https://alpaca.markets/'
     api_endpoint_url = 'https://paper-api.alpaca.markets'
-    api_key_id, api_key = open(
-                                os.path.join(
-                                            os.path.dirname(os.path.realpath(__file__)),
-                                            'api_key.txt'
-                                            )
-                                ).read().split('\n')
+    api_key_id = settings.API['Alpaca']['id']
+    api_key = settings.API['Alpaca']['key']
     (os.environ["ALPACA_ID"],
     os.environ["ALPACA_KEY"]) = api_key_id,api_key
     def __init__(self):

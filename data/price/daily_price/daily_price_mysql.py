@@ -1,5 +1,5 @@
 
-from qfengine.data.price.price_database import MySQLPriceDataSource as SQLTable
+from qfengine.data.price.price_source import MySQLPriceDataSource as SQLTable
 from qfengine.asset import assetClasses
 
 import pandas as pd
@@ -89,6 +89,7 @@ class DataVendorMySQL(SQLTable):
     @property
     def List(self):
       return list(self._APIs.keys())
+
 
 class ExchangeMySQL(SQLTable):
     create_schema = (
@@ -323,6 +324,10 @@ class DailyPriceMySQL(SQLTable):
                    **kwargs
     )->list:
       return list(self.assetsDF(**kwargs).index.values)
+    
+    @property
+    def sectorsList(self)->list:
+      return self.symbols.DF.sector.dropna().unique()  
     #---------------------------|
 
 
@@ -348,7 +353,8 @@ class DailyPriceMySQL(SQLTable):
                                             price:str = None,
                                             start_dt = None,
                                             end_dt = None,
-                                              adjusted = None
+                                              adjusted = None,
+                                              **kwargs
     )->pd.DataFrame:
         if price:
             assert price in [
@@ -529,11 +535,10 @@ class DailyPriceMySQL(SQLTable):
     def vendorsList(self,)->list:
       return self.vendors.List if self.by_vendor is None else [self.by_vendor]
 
-    @property
-    def sectorsList(self)->list:
-      return self.symbols.DF.sector.dropna().unique()
-   
 
+
+
+   #!---| BACKEND
     def _transform_DF_for_daily_price_upsert(self,
                                     upsert_df:pd.DataFrame,
                                     **kwargs

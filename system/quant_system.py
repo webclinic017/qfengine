@@ -35,8 +35,10 @@ class QuantTradingSystem(object):
      - Alpha Model
      - Risk Model
      - Transaction Cost Model
-     portfolio construction
-    and execution mechanism.
+     - Fee Model
+     - etc...
+
+    for Portfolio construction & Execution mechanism.
     Parameters
     ----------
     universe : `Universe`
@@ -78,7 +80,6 @@ class QuantTradingSystem(object):
         """
         Initialize the various models for the quantitative trading strategy.
         TODO: Add TransactionCostModel
-        TODO: Ensure this is dynamically generated from config.
         """
         self.long_only = long_only # True = Able to manage cash | False = Harder to manage Cash -> leverageable
         self.order_sizer = self._init_order_sizer(**kwargs)

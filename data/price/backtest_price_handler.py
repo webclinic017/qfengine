@@ -37,7 +37,8 @@ class BacktestPriceHandler(PriceHandler):
     def assetsDF(self, **kwargs):
         df = pd.DataFrame()
         for ds in self.price_data_sources:
-            df = df.append(ds.assetsDF(**kwargs).drop(index= df.index))
+            new_df = ds.assetsDF(**kwargs)
+            df = df.append(new_df.reindex([i for i in new_df.index if i not in df.index]))
         if self.universe:
             df = df.reindex([i for i in df.index if i in self.universe.get_assets()])
         return df

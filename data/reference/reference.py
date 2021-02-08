@@ -14,3 +14,8 @@ class DataVendorReferenceData(object):
     __metaclass__ = ABCMeta
 
 
+class ExchangeReferenceData(object):
+
+    __metaclass__ = ABCMeta
+
+

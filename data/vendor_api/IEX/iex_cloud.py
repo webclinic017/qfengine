@@ -4,8 +4,8 @@ import numpy as np
 import datetime
 import logging
 import time
-
 import pyEX as api
+from qfengine import settings
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +16,9 @@ class IEX(object):
     name = 'IEX'
     website_url = 'https://iexcloud.io/'
     api_endpoint_url = 'https://cloud.iexapis.com/'
-    api_key = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"api_key.txt")).read().split("\n")[0]
+    api_key = settings.API['IEX']['key']
+    os.environ["IEX_TOKEN"] = api_key
+    # api_key = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"api_key.txt")).read().split("\n")[0]
     
     def __init__(self):
         self._client = api.Client(self.api_key,version=('sandbox' if self.api_key.startswith("T") else 'v1'))
@@ -142,7 +144,9 @@ class IEXSandbox(IEX):
     name = 'IEXSandbox'
     website_url = 'https://iexcloud.io/'
     api_endpoint_url = 'https://sandbox.iexapis.com'
-    api_key = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"api_key_sandbox.txt")).read().split("\n")[0]
+    api_key = settings.API['IEXSandbox']['key']
+    # api_key = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"api_key.txt")).read().split("\n")[0]
+    
     def __init__(self):
         super().__init__()
     

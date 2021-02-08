@@ -24,3 +24,4 @@ class Price(TimeSeriesData):
         self.lowPrice = lowPrice
         self.closePrice = closePrice
         self.volume = volume
+    

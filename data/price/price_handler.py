@@ -1,4 +1,4 @@
-from qfengine.data.price.price_database import PriceDataSource
+from qfengine.data.price.price_source import PriceDataSource
 from qfengine.data.data_handler import DataHandler
 from qfengine.asset.universe.universe import Universe
 from abc import ABCMeta, abstractmethod
@@ -25,6 +25,15 @@ class PriceHandler(DataHandler):
         self.price_data_sources = list(price_data_sources)
         # TODO: Add preference source or ordered of calls until fit cond.
     
+
+    @abstractmethod
+    def assetsDF(self,*kwargs):
+        raise NotImplementedError("Implement assetsDF()")
+    
+    @abstractmethod
+    def assetsList(self, **kwargs):
+        raise NotImplementedError("Implement assetsList()")
+
     #!---| Bid & Ask Functions |---!#
     @abstractmethod
     def get_asset_latest_bid_price(self, dt, asset_symbol)->float:

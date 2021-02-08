@@ -1,4 +1,4 @@
-from qfengine.data.price.price_database import CSVPriceDataSource
+from qfengine.data.price.price_source import CSVPriceDataSource
 from qfengine.asset import assetClasses
 from qfengine import settings
 from typing import Union, List
@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import os
 import functools
-import pytz
+import concurrent.futures
 
 
 class DailyPriceCSV(CSVPriceDataSource):
@@ -15,273 +15,255 @@ class DailyPriceCSV(CSVPriceDataSource):
     def __init__(
                  self,
                  asset_type:assetClasses,
-                 csv_dir:str,
-                    csv_symbols:List[str] = None,
+                 csv_dir:str = None,
+                 symbols_list:List[str] = None,
                     min_start_date = None,
                     init_to_latest:bool = True,
                     adjust_prices:bool = False,
     ):
-        super().__init__(csv_dir, csv_symbols)
+        csv_dir = csv_dir or settings.CSV_DIRECTORIES['PRICE']['DAILY']
+        super().__init__(csv_dir, symbols_list)
         self.asset_type = asset_type
         self.adjust_prices = adjust_prices
         self.min_start_date = min_start_date
 
-        self.symbols_asset_data = {}
-        self.symbols_price_data = {}
-        self.latest_symbols_price_data = {}
-        self.asset_bid_ask_frames = {}
-        self.csv_combined_index = None
-        self._all_latest_loaded = False
-
-        self.initialize_price_database(min_start_date, init_to_latest)
+    def create_price_source_copy(self):
+        copy = DailyPriceCSV(
+                        asset_type = self.asset_type,
+                        csv_dir = self.csv_dir,
+        )
+        copy.symbols_list = self.symbols_list #---| skip symbols vetting for CSV data
+        return copy
         
-        
-    def initialize_price_database(self,
-                                  min_start_date = None,
-                                  init_to_latest:bool=False
-    ):
-        min_start = min_start_date if min_start_date is not None else (pd.Timestamp.now(tz=settings.TIMEZONE) - pd.Timedelta('1D'))
+   #!--| MAIN FUNCS (ABSTRACT)
+    def assetsDF(self,**kwargs):
+        return pd.DataFrame(
+          {
+            'symbol':pd.Series(data=self.symbols_list)
+          }
+                  ).set_index('symbol')
 
-        combinedIndex = None
-        symbols_data = {}
-        latest_symbols_data = {}
-        for s in self.csv_symbols:
-            s_df = self._csv_to_df(self._csv_file_from_symbol(s))
-            s_df = s_df.set_index(s_df.index.tz_localize(settings.TIMEZONE))
-            if s_df.index[0] <= min_start:
-                if combinedIndex is None:
-                    combinedIndex = s_df.index
-                else:
-                    combinedIndex.union(s_df.index)
-                symbols_data[s] = s_df
-                latest_symbols_data[s] = []
-        assert combinedIndex is not None
+    def assetsList(self,**kwargs):
+        return self.symbols_list.copy()
 
-        asset_bid_ask_frames = {
-                            asset_symbol : self._assets_price_data_to_bid_ask(
-                                                                    df.reindex(combinedIndex,method='pad')
-                                                                             ) for asset_symbol,df in symbols_data.items()
-                                }
-        #---| INITIALIZE EVERYTHING
+    @property
+    def sectorsList(self):
+      return []
 
 
-        if not init_to_latest:#---| usually for backtesting purposes
-            self.symbols_price_data = {s:s_df.reindex(combinedIndex, method='pad').iterrows() for s,s_df in symbols_data.items()}
-            self._all_latest_loaded = False
-        else:
-            self.symbols_price_data = {}
-            self._all_latest_loaded = True
-        
-        self.latest_symbols_price_data = latest_symbols_data
-        self.asset_bid_ask_frames = asset_bid_ask_frames
-        self.csv_combined_index = combinedIndex
-        self.csv_symbols = list(symbols_data.keys())
-
-
-        
-        
-    def get_latest_price_data(self, symbol, N=1):
-        try:
-            dat = self.latest_symbols_price_data[symbol]
-        except KeyError:
-            raise Exception("symbol %s does not exist in current csv database" %symbol)
-        if len(dat) == 0 and self._all_latest_loaded:
-            full_df = self._csv_to_df(self._csv_file_from_symbol(symbol)).reindex(
-                                                                            index=self.csv_combined_index,
-                                                                            method='pad'
-                                                                            )
-            full_df = full_df.sort_index().tail(N)                                                            
-            return [
-                tuple([symbol, idx,
-                                d[0], d[1], d[2], d[3], d[4]
-                      ]) for idx,d in zip(full_df.index, full_df.values)
-                  ]
-        
-        return dat[-N:]
-
-    def update_price_data(self):
-        if self._all_latest_loaded:
-            return
-        new_loaded = []
-        for s in self.csv_symbols:
-            try:
-                dat = next(self._get_new_data(s))
-            except StopIteration:
-                pass
-            else:
-                new_loaded.append(s)
-                if dat is not None:
-                    self.latest_symbols_price_data[s].append(dat)
-        if len(new_loaded) == 0:
-            self._all_latest_loaded = True
-    
-    def _get_new_data(self, symbol):
-        """
-        Returns the latest bar from the data feed as a tuple of 
-        (symbol, datetime, open, low, high, close, volume).
-        """
-        for idx,dat in self.symbols_price_data[symbol]:
-            #yield tuple([symbol, datetime.datetime.strptime(b[0], '%Y-%m-%d %H:%M:%S'),b[1][0], b[1][1], b[1][2], b[1][3], b[1][4]])
-            yield tuple([
-                    symbol,pd.Timestamp(idx),
-                                dat[0], dat[1], dat[2], dat[3], dat[4]
-                        ])
-
-    def _assets_price_data_to_bid_ask(self, bar_df):
-        """
-        Converts the DataFrame from daily OHLCV 'bars' into a DataFrame
-        of open and closing price timestamps.
-        Optionally adjusts the open/close prices for corporate actions
-        using any provided 'Adjusted Close' column.
-        Parameters
-        ----------
-        `pd.DataFrame`
-            The daily 'bar' OHLCV DataFrame.
-        Returns
-        -------
-        `pd.DataFrame`
-            The individually-timestamped open/closing prices, optionally
-            adjusted for corporate actions.
-        """
-        bar_df = bar_df.sort_index()
-        if self.adjust_prices:
-            if 'Adj Close' not in bar_df.columns:
-                raise ValueError(
-                    "Unable to locate Adjusted Close pricing column in CSV data file. "
-                    "Prices cannot be adjusted. Exiting."
-                                )
-            
-            # Restrict solely to the open/closing prices
-            oc_df = bar_df.loc[:, ['open', 'close', 'Adj Close']]
-
-            # Adjust opening prices
-            oc_df['Adj Open'] = (oc_df['Adj Close'] / oc_df['close']) * oc_df['open']
-            oc_df = oc_df.loc[:, ['Adj Open', 'Adj Close']]
-            oc_df.columns = ['open', 'close']
-        else:
-            oc_df = bar_df.loc[:, ['open', 'close']]
-
-        # Convert bars into separate rows for open/close prices
-        # appropriately timestamped
-        seq_oc_df = oc_df.T.unstack(level=0).reset_index()
-        seq_oc_df.columns = ['datetime', 'market', 'price']
-        seq_oc_df.loc[seq_oc_df['market'] == 'open', 'datetime'] += pd.Timedelta(hours=9, minutes=30)
-        seq_oc_df.loc[seq_oc_df['market'] == 'close', 'datetime'] += pd.Timedelta(hours=16, minutes=00)
-
-        # TODO: Unable to distinguish between Bid/Ask, implement later
-        dp_df = seq_oc_df[['datetime', 'price']]
-        dp_df['bid'] = dp_df['price']
-        dp_df['ask'] = dp_df['price']
-        dp_df = dp_df.loc[:, ['datetime', 'bid', 'ask']].fillna(method='ffill').set_index('datetime').sort_index()
-        return dp_df
-
-    def get_historical_price_df(self,
-                                asset,
-                                price = None,
-                                start_dt = None,
-                                end_dt = None,
-                                multi_index_columns:bool = True,
+    def get_assets_bid_ask_dfs(self,
+                               asset:str,
+                               *assets:str,
+                                  start_dt=None,   
+                                  end_dt=None,
+                                  **kwargs
     )->pd.DataFrame:
-        if price is not None:
-            price = [price]
-        else:
-            price = ['open','high', 'low', 'close','volume']
-        assert set(price).issubset(set(['open','high', 'low', 'close','volume']))
+      return self._price_dfs_to_bid_ask_dfs(
+                      self.get_assets_historical_price_dfs(asset,
+                                                            *assets,
+                                                            start_dt = start_dt,
+                                                            end_dt = end_dt
+                                                        )
+      )
 
-        if asset not in self.csv_symbols:
-            return pd.DataFrame(columns=['open','high', 'low','close','volume'])
-        else:
-            for dt in [start_dt, end_dt]:
-                if dt is not None:
-                    try:
-                        pd.Timestamp(dt)
-                    except:
-                        raise Exception("Assigned start_dt/end_dt needs to be convertable to pd.Timestamp")
-            if start_dt is not None and end_dt is not None:
-                assert pd.Timestamp(end_dt) > pd.Timestamp(start_dt)
-            df = self._csv_to_df(self._csv_file_from_symbol(asset))
-            df = df.set_index(df.index.tz_localize(settings.TIMEZONE))
-            df = df.reindex(
-                            index=self.csv_combined_index,
-                            method='pad'
-                            )[price]
-            if multi_index_columns:
-                df.columns = [
-                              np.array([asset for _ in range(df.shape[1])]),
-                              np.array(df.columns)
-                             ]
-            if start_dt is not None:
-                df = df[df.index >= pd.Timestamp(start_dt)]
-            if end_dt is not None:
-                df = df[df.index <= pd.Timestamp(end_dt)]
-            return df
-
-
-    #!--| MAIN FUNCS
     def get_assets_historical_price_dfs(self,
-                                        assets,
-                                        start_dt=None,
-                                        end_dt=None,
-                                        price= None,
-                                        adjusted=False
+                                        asset:str,
+                                        *assets:str,
+                                            price:str = None,
+                                            start_dt = None,
+                                            end_dt = None,
+                                              adjusted = None,
+                                              **kwargs
     )->pd.DataFrame:
-        price_df = pd.concat(
-                    [
-            df for df in [
-                self.get_historical_price_df(asset, price, start_dt, end_dt) for asset in assets
-                         ] if not df.empty
-                    ],
-                    axis=1
-                        )
-        if price_df.empty:
-            return None
-        else:
-            return price_df
+        if price:
+            assert price in [
+                  "open", "high", "low",
+                  "close","volume"
+                          ]
+        symbols = [asset] + [s for s in assets]
+        #--| parallelizing csv readings for performance
+        result = self._assets_daily_price_DF(*symbols)
+
+        if price:
+          result = result[
+                  [col for col in result.columns if price in col]
+                      ]
+          result.columns = result.columns.get_level_values('symbols')
         
+        if start_dt:
+          result = result[result.index >= self._format_dt(start_dt)]
+        if end_dt:
+          result = result[result.index <= self._format_dt(end_dt)]
 
-    @functools.lru_cache(maxsize=1024 * 1024)
-    def get_bid(self, dt, asset):
-        """
-        Obtain the bid price of an asset at the provided timestamp.
-        Parameters
-        ----------
-        dt : `pd.Timestamp`
-            When to obtain the bid price for.
-        asset : `str`
-            The asset symbol to obtain the bid price for.
-        Returns
-        -------
-        `float`
-            The bid price.
-        """
-        bid_ask_df = self.asset_bid_ask_frames[asset]
+        return result
+    
+
+
+    #----| Price Date Ranges
+    def get_assets_minimum_start_dt(self,
+                                        asset:str,
+                                        *assets:str,
+    )->pd.Timestamp:
+        return self._format_dt(max(
+          self.get_assets_price_date_ranges_df(
+                            asset, *assets
+                                            ).start_dt.values
+                 ))
+
+    def get_assets_maximum_end_dt(self,
+                                      asset:str,
+                                      *assets:str,
+    )->pd.Timestamp:
+        return self._format_dt(min(
+          self.get_assets_price_date_ranges_df(
+                            asset, *assets
+                                            ).end_dt.values
+                 ))
+                
+    @functools.lru_cache(maxsize = 1024 * 1024)
+    def get_assets_price_date_ranges_df(self,
+                                        asset:str,
+                                        *assets:str,
+    )->pd.DataFrame:
+
+        symbols = [asset] + [s for s in assets]
+        if self.symbols_list:
+          assert set(symbols).issubset(self.symbols_list)
+        
+        def _get_result(source, symbol):
+          return {
+              'symbol': symbol,
+              'start_dt': self._format_dt(source._asset_symbol_min_price_date(symbol)),
+              'end_dt': self._format_dt(source._asset_symbol_max_price_date(symbol)),
+                }
+        final_df = pd.DataFrame.from_dict(
+                                list(
+                                  concurrent.futures.ThreadPoolExecutor().map(
+                                                                          _get_result, 
+                                                                          *zip(*(
+                                                                            (
+                                                                              self.create_price_source_copy(),
+                                                                              symbol,
+                                                                            ) for symbol in symbols
+                                                                                ))
+                                                                              )
+                                    )
+                                          ).set_index('symbol').dropna()
+        return final_df
+    #---------------------------|
+
+
+   #!---------------------------------|
+
+
+
+   #!----| BACKEND FUNCTIONS 
+    @functools.lru_cache(maxsize = 1024 * 1024) 
+    def _assets_daily_price_DF(self,
+                                asset:str,
+                                *assets:str
+    ):
+        symbols = [asset] + [s for s in assets]
+        if self.symbols_list:
+          assert set(symbols).issubset(self.symbols_list)
+        all_dfs = concurrent.futures.ThreadPoolExecutor().map(
+                                        self.__class__._csv_to_df, 
+                                        *zip(*(
+                                        (
+                                            self.create_price_source_copy(),
+                                            self._csv_file_from_symbol(symbol),
+                                        ) for symbol in symbols
+                                            ))
+                                                        )
+        final_df = pd.concat([
+                d.where(pd.notna(d), np.nan) for d in all_dfs if (
+                                                not d.where(pd.notna(d), np.nan).dropna().empty
+                                                                )
+                            ], axis=1)
+        final_df.columns.names = ('symbols','columns')
+        final_df = final_df.set_index(final_df.index.tz_localize(settings.TIMEZONE))
+        final_df = final_df.sort_index()
+
+        missing_symbols = [s for s in symbols if s not in final_df.columns.get_level_values('symbols')]
+        if len(missing_symbols) > 0:
+          if settings.PRINT_EVENTS:
+            print("Warning: Queried Daily Prices DataFrame is missing %s symbols:" %len(missing_symbols))
+            print(missing_symbols)
+        return final_df
+
+    def _csv_to_df(self, csv_file:str):
+        assert csv_file.endswith('.csv')
+        df = pd.io.parsers.read_csv(
+                                    os.path.join(self.csv_dir, csv_file),
+                                    header=0, index_col=0, 
+                                    names=['datetime','open','low','high','close','volume']
+                                   )
+        df.index = pd.DatetimeIndex(df.index)
+        for c in df.columns:
+            df[c] = pd.to_numeric(df[c])
+        asset = self._symbol_from_csv_file(csv_file)
+        df.columns = [
+              np.array([asset for _ in df.columns]),
+              np.array(df.columns)
+             ]
+        return df
+        
+    def _format_dt(self, dt):
+      try:
+        return pd.Timestamp(dt).tz_convert(settings.TIMEZONE)
+      except TypeError:
         try:
-            bid = bid_ask_df.iloc[bid_ask_df.index.get_loc(dt, method='pad')]['bid']
-        except KeyError:  # Before start date
-            return np.NaN
-        return bid
+          return pd.Timestamp(dt).tz_localize(settings.TIMEZONE)
+        except:
+          raise
 
-    @functools.lru_cache(maxsize=1024 * 1024)
-    def get_ask(self, dt, asset):
-        """
-        Obtain the ask price of an asset at the provided timestamp.
-        Parameters
-        ----------
-        dt : `pd.Timestamp`
-            When to obtain the ask price for.
-        asset : `str`
-            The asset symbol to obtain the ask price for.
-        Returns
-        -------
-        `float`
-            The ask price.
-        """
-        bid_ask_df = self.asset_bid_ask_frames[asset]
-        try:
-            ask = bid_ask_df.iloc[bid_ask_df.index.get_loc(dt, method='pad')]['ask']
-        except KeyError:  # Before start date
-            return np.NaN
-        return ask
+    def _price_dfs_to_bid_ask_dfs(self, 
+                                  price_df:pd.DataFrame
+    ):
+        def _symbol_price_to_bid_ask(bar_df, symbol):
+          cols = [
+                np.array([symbol, symbol]),
+                np.array(['bid', 'ask'])
+                ]
+          if bar_df.dropna().empty:
+            return pd.DataFrame(columns = cols)
+          bar_df = bar_df.sort_index()
+          oc_df = bar_df.loc[:, ['open', 'close']]
+          oc_df['pre_market'] = oc_df['close'].shift(1)
+          oc_df['post_market'] = oc_df['close']
+          oc_df = oc_df.dropna()
+          # Convert bars into separate rows for open/close prices
+          # appropriately timestamped
+          seq_oc_df = oc_df.T.unstack(level=0).reset_index()
+          seq_oc_df.columns = ['datetime', 'market', 'price']
 
-    def assetsDF(self):
-        return pd.DataFrame({'symbol':pd.Series(data=self.csv_symbols)})
+          seq_oc_df.loc[seq_oc_df['market'] == 'open', 'datetime'] += pd.Timedelta(hours=9, minutes=30)
+          seq_oc_df.loc[seq_oc_df['market'] == 'close', 'datetime'] += pd.Timedelta(hours=16, minutes=00)
+          seq_oc_df.loc[seq_oc_df['market'] == 'pre_market', 'datetime'] += pd.Timedelta(hours=0, minutes=00)
+          seq_oc_df.loc[seq_oc_df['market'] == 'post_market', 'datetime'] += pd.Timedelta(hours=23, minutes=59)
+
+          # TODO: Unable to distinguish between Bid/Ask, implement later
+          dp_df = seq_oc_df[['datetime', 'price']]
+          dp_df['bid'] = dp_df['price']
+          dp_df['ask'] = dp_df['price']
+          dp_df = dp_df.loc[:, ['datetime', 'bid', 'ask']].fillna(method='ffill').set_index('datetime').sort_index()
+          dp_df.columns = cols
+          return dp_df 
+        
+        bid_ask_df = pd.concat(
+                      [
+                        _symbol_price_to_bid_ask(price_df[symbol], symbol) 
+                          for symbol in price_df.columns.get_level_values('symbols').unique()
+                      ], axis = 1
+                    )
+        bid_ask_df.columns.names = ('symbols', 'columns') 
+
+        return bid_ask_df
+
+    def _asset_symbol_min_price_date(self, symbol):
+        df = self._csv_to_df(self._csv_file_from_symbol(symbol))
+        return df.dropna().sort_index().index[1]
+    
+    def _asset_symbol_max_price_date(self, symbol):
+        df = self._csv_to_df(self._csv_file_from_symbol(symbol))
+        return df.dropna().sort_index().index[-1]

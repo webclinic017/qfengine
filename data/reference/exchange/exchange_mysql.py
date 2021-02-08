@@ -1,4 +1,4 @@
-from qfengine.data.reference.reference_database import SymbolReferenceDatabase
+from qfengine.data.reference.reference_source import SymbolReferenceDataSource
 from qfengine.data.database import CSVDatabase, MySQLDatabase
 from abc import ABCMeta, abstractmethod
 import pandas as pd
@@ -8,7 +8,7 @@ import os
 
 
 
-class SymbolReferenceCSV(SymbolReferenceDatabase, CSVDatabase):
+class SymbolReferenceCSV(SymbolReferenceDataSource, CSVDatabase):
 
     def __init__(self,
                  csv_dir,
@@ -32,10 +32,10 @@ class SymbolReferenceCSV(SymbolReferenceDatabase, CSVDatabase):
         return df.reindex(symbols)
     
     def symbolsList(self):
-        return self.symbols_list
+        return self.symbols_list.copy()
     
     def symbolsDF(self):
-        return self._DF
+        return self._DF.copy()
     
 
 

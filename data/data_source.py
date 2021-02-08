@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-
+#!----| CSV Data Source(s) 
 class CSVDataDirectory(object):
 
     __metaclass__ = ABCMeta
@@ -28,6 +28,18 @@ class CSVDataDirectory(object):
     def _csv_files_in_dir(self):
         return [f for f in os.listdir(self.csv_dir) if f.endswith('.csv')]
 
+class CSVDataSource(CSVDataDirectory):
+
+    __metaclass__ = ABCMeta
+
+    def __init__(self, csv_dir:str):
+        super().__init__(csv_dir,)
+
+
+
+
+
+#!----| MySQL Data Source(s) ~ MySQL Table (within a relational database)
 class MySQLConnection(object):
 
     __metaclass__ = ABCMeta
@@ -123,27 +135,20 @@ class MySQLConnection(object):
                 logger.warning("Root Access Detected, Attempting to Create New Database Named '%s'..."%db)
                 MySQLConnection._execute(conn,"CREATE DATABASE %s" %db)
         
-        credentials['db'] = db
+        full_credentials = credentials.copy()
+        full_credentials['db'] = db
         try:
-            conn = mdb.connect(**credentials)
+            conn = mdb.connect(**full_credentials)
         except:
-            raise Exception("Given User Credentials Cannot Access Database %s (but sees it?)" %db)
+            try:
+                MySQLConnection._execute(conn, "set global max_connections = 1000000")
+            except:
+                raise Exception("Given User Credentials Cannot Access Database %s (but sees it?), even after adjusting max_connection to 1mil." %db)
         return conn
 
 
     def _available_sql_tables(self):
         return [t[0] for t in self.executeSQL('SHOW TABLES')]
-
-
-
-
-class CSVDataSource(CSVDataDirectory):
-
-    __metaclass__ = ABCMeta
-
-    def __init__(self, csv_dir:str):
-        super().__init__(csv_dir,)
-
 
 class MySQLDataSource(MySQLConnection):
 

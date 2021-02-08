@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
-from qfengine.data.database import CSVDataSource, MySQLDataSource
+from qfengine.data.data_source import CSVDataSource, MySQLDataSource
+from qfengine import settings
 from typing import List,Dict
 import pandas as pd
 import os
@@ -39,7 +40,7 @@ class CSVPriceDataSource(CSVDataSource,PriceDataSource):
     def __init__(self,
                  csv_dir:str,
                  csv_symbols:List[str] = None,
-    ):
+    ):       
         super().__init__(csv_dir)
         available_csv_symbols = [self._symbol_from_csv_file(f) for f in self._csv_files_in_dir]
         if csv_symbols is not None:
@@ -48,8 +49,7 @@ class CSVPriceDataSource(CSVDataSource,PriceDataSource):
                 print("Omitting following symbols that do not exist in csv_dir:")
                 print([s for s in csv_symbols if s not in available_csv_symbols])
         assert len(available_csv_symbols) > 0, "No symbols (assigned or not) is available in csv_dir: %s" %self.csv_dir
-        self.csv_symbols = available_csv_symbols
-
+        self.symbols_list = available_csv_symbols
     
     def _symbol_from_csv_file(self, csv_file:str):
         assert csv_file.endswith('.csv')
@@ -57,21 +57,7 @@ class CSVPriceDataSource(CSVDataSource,PriceDataSource):
     
     def _csv_file_from_symbol(self, symbol:str):
         assert not symbol.endswith('.csv')
-        return symbol +'.csv'
-    
-    def _csv_to_df(self,csv_file:str):
-        assert csv_file.endswith('.csv')
-        df = pd.io.parsers.read_csv(
-                                    os.path.join(self.csv_dir, csv_file),
-                                    header=0, index_col=0, 
-                                    names=['datetime','open','low','high','close','volume']
-                                   )
-        df.index = pd.DatetimeIndex(df.index)
-        for c in df.columns:
-            df[c] = pd.to_numeric(df[c])
-        df = df.sort_index()
-        return df
-    
+        return symbol +'.csv'  
 
 class MySQLPriceDataSource(MySQLDataSource, PriceDataSource):
 

@@ -1,10 +1,9 @@
-from qfengine.data.database import CSVDatabase, MySQLDatabase
 from abc import ABCMeta, abstractmethod
 import pandas as pd
 
 
 
-class SymbolReferenceDatabase(object):
+class SymbolReferenceDataSource(object):
 
     __metaclass__ = ABCMeta
 
@@ -17,7 +16,7 @@ class SymbolReferenceDatabase(object):
         raise NotImplementedError("Implement symbolsDF()")
 
 
-class DataVendorReferenceDatabase(object):
+class DataVendorReferenceDataSource(object):
 
     __metaclass__ = ABCMeta
 
@@ -31,10 +30,15 @@ class DataVendorReferenceDatabase(object):
 
 
 
-class CSVSymbolReferenceDatabase(SymbolReferenceDatabase, CSVDatabase):
+class ExchangeReferenceDataSource(object):
 
     __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def vendorsList(self):
+        raise NotImplementedError("Implement exchangesList()")
     
-
-
+    @abstractmethod
+    def vendorsDF(self):
+        raise NotImplementedError("Implement exchangesDF()")
 

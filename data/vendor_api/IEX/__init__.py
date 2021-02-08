@@ -2,9 +2,6 @@ from qfengine.data.vendor_api.IEX.iex_cloud import IEX, IEXSandbox
 import os
 
 
-
-
-os.environ["IEX_TOKEN"] = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),"api_key_sandbox.txt")).read().split("\n")[0]
 os.environ["IEX_API_VERSION"] = "iexcloud-sandbox"
 os.environ["IEX_OUTPUT_FORMAT"] = "pandas"
 
